@@ -22,6 +22,9 @@ contract SafeExchange {
     // Contract that is to be exchanged
     AccessControl public contractForSale;
 
+    // Exchange completed, allowing for additional payment.
+    address public exchangeCompletedBySeller;
+
     // Emitted when the exchange has been completed.
     event Exchanged(address seller);
 
@@ -72,10 +75,22 @@ contract SafeExchange {
         contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         // Send price to msg.sender
-        (bool success, ) = payable(msg.sender).call{value: price1}("");
-        require(success, "Transfer failed");
+        transferMoney(msg.sender, price1);
 
+        // Indicate that the seller could receive a further future reward.
+        exchangeCompletedBySeller = msg.sender;
+
+        // Indicate exchange complted.
         emit Exchanged(msg.sender);
+    }
+
+    /**
+     * @notice Pay a bonus payment to the seller.
+     * @dev For this to work, the increaseOffer funcion needs to be called 
+     *      to add value to the contract.
+     */
+    function payBonusPayment() external onlyOwner() {
+        transferMoney(exchangeCompletedBySeller, price());
     }
 
 
@@ -91,8 +106,7 @@ contract SafeExchange {
      */
     function decreaseOffer(uint256 _amountInEther) external payable onlyOwner() {
         uint256 amount = _amountInEther * 1 ether;
-        (bool success, ) = payable(msg.sender).call{value: amount}("");
-        require(success, "Transfer failed");
+        transferMoney(msg.sender, amount);
     }
 
     /**
@@ -103,9 +117,20 @@ contract SafeExchange {
     }
 
     /**
-     * Price is the amount being offered for the admin account
+     * @notice Price is the amount being offered for the admin account
+     * @return bal The balance of this contract.
      */
-    function price() public view returns (uint256) {
-        return address(this).balance;
+    function price() public view returns (uint256 bal) {
+        bal = address(this).balance;
+    }
+
+    /**
+     * @notice Transfer money.
+     * @param _to Recipient of the ether.
+     * @param _amount Amount to transfer in wei.
+     */
+    function transferMoney(address _to, uint256 _amount) private {
+        (bool success, ) = payable(_to).call{value: _amount}("");
+        require(success, "Transfer failed");
     }
 }
