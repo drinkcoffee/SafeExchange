@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BSD
-pragma solidity ^0.8.19;
+// Use 0.7.6 to be compatible with Open Zeppelin 3.4.0
+pragma solidity ^0.7.6;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "./oz340/AccessControl.sol";
 
 contract SafeExchange {
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
@@ -12,10 +13,6 @@ contract SafeExchange {
 
     event Exchanged(address seller);
 
-    error NotCorrectAmount();
-    error NotAnEOA(address account);
-    error TransferFailed();
-    error TooManyAdmins(uint256 _numAdmins);
 
     constructor(address _newAdmin, address _contractForSale) payable {
         owner = msg.sender;
@@ -28,16 +25,12 @@ contract SafeExchange {
     function exchange() external {
         // Prevent contract accounts calling this. This prevents MultiCall contracts possibly 
         // doing something "extra" in the same transaction.
-        if (msg.sender != tx.origin) {
-            revert NotAnEOA(msg.sender);
-        }
+        require(msg.sender == tx.origin, "Not an EOA");
 
         // Check that the number of admins is 1. The issue that we are guarding against is there being 
         // two admins, of which only one is revoked.
         uint256 numAdmins = contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE);
-        if (numAdmins != 1) {
-            revert TooManyAdmins(numAdmins);
-        }
+        require(numAdmins == 1, "Too many admins");
 
         // Grant role DEFAULT_ADMIN_ROLE to the newAdmin.
         contractForSale.grantRole(DEFAULT_ADMIN_ROLE, newAdmin);
@@ -47,9 +40,7 @@ contract SafeExchange {
 
         // Send price to msg.sender
         (bool success, ) = payable(msg.sender).call{value: price()}("");
-        if (!success) {
-            revert TransferFailed();
-        }
+        require(success, "Transfer failed");
 
         emit Exchanged(msg.sender);
     }
