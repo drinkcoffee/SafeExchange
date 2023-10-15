@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import "../src/SafeExchange.sol";
 
 contract SafeExchangeTest is Test {
-    Bounty public counter;
+    SafeExchange public counter;
 
     function setUp() public {
         counter = new SafeExchange();
