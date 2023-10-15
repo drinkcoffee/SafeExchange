@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: BSD
 pragma solidity ^0.8.19;
 
-contract SafeExchange {
-    uint256 public constant PRICE = 10 ether;
-    uint256 public constant PERIOD = 1 days;
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
+contract SafeExchange {
     address public owner;
     address public newAdmin;
-    uint256 public start;
 
     event Exchanged(address seller);
 
@@ -15,12 +13,8 @@ contract SafeExchange {
     error NotAnEOA(address account);
 
     constructor(address _newAdmin) payable {
-        if (msg.value != PRICE) {
-            revert NotCorrectAmount();
-        }
         owner = msg.sender;
         newAdmin = _newAdmin;
-        start = block.timestamp;
     }
 
     // Seller calls this, to exchange control of admin rights for the PRICE
@@ -48,5 +42,12 @@ contract SafeExchange {
         // TOOD add static analysis override
         selfdestruct(payable(owner));
 
+    }
+
+    /**
+     * Price is the amount being offered for the admin account
+     */
+    function price() external view returns (uint256) {
+        return address(this).balance;
     }
 }
