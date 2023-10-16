@@ -1,4 +1,6 @@
-// SPDX-License-Identifier: UNLICENSED
+// Copyright (c) Peter Robinson 2023
+// SPDX-License-Identifier: BSD
+// Use 0.7.6 to be compatible with Open Zeppelin 3.4.0
 pragma solidity ^0.7.6;
 pragma experimental ABIEncoderV2;
 
@@ -56,7 +58,6 @@ contract SafeExchangeTest is Test {
        assertEq(safeExchange.seller(), seller, "Seller in contract not seller");
        assertEq(safeExchange.newAdmin(), newAdmin, "New admin not set correctly");
        assertEq(address(safeExchange.contractForSale()), address(contractForSale), "Contract for sale incorrect address");
-       assertEq(safeExchange.exchangeCompletedBySeller(), address(0), "exchangeCompletedBySeller not set correctly");
     }
 
     function testInitBadOffer() public {
@@ -172,6 +173,19 @@ contract SafeExchangeTest is Test {
         // Check contract is still admin.
         assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins");
         assertTrue(contractForSale.hasRole(DEFAULT_ADMIN_ROLE, address(safeExchange)), "safeExchange not admin");
+    }
+
+    function testRegainOwnershipAfterExchange() public {
+        // Execute the exchange
+        prepareForExchange();
+        vm.startPrank(seller, seller);
+        safeExchange.exchange(OFFER_AMOUNT1);
+        vm.stopPrank();
+
+        // Now try to regain ownership
+        vm.startPrank(seller);
+        vm.expectRevert("AccessControl: sender must be an admin to grant");
+        safeExchange.regainOwnership();
     }
 
     function testIncreaseBonus() public {

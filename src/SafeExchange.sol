@@ -1,3 +1,4 @@
+// Copyright (c) Peter Robinson 2023
 // SPDX-License-Identifier: BSD
 // Use 0.7.6 to be compatible with Open Zeppelin 3.4.0
 pragma solidity ^0.7.6;
@@ -30,9 +31,6 @@ contract SafeExchange {
 
     // Contract that is to be exchanged
     AccessControl public contractForSale;
-
-    // Exchange completed, allowing for additional payment.
-    address public exchangeCompletedBySeller;
 
     // Emitted when the exchange has been completed.
     event Exchanged(address seller);
@@ -101,15 +99,21 @@ contract SafeExchange {
         // Send price to msg.sender
         transferMoney(msg.sender, price);
 
-        // Indicate that the seller could receive a further future reward.
-        exchangeCompletedBySeller = msg.sender;
-
+        // Offer has been paid out. No more offer is available.
         offer = 0;
 
         // Indicate exchange completed.
         emit Exchanged(msg.sender);
     }
 
+    /**
+     * @notice If the seller transfers admin rights for the contract that is for sale 
+     *  to this contract, and then either they change their mind before called exchange, 
+     *  or exchange fails for some reason, this function allows them to regain control 
+     *  of the contract for sale. 
+     * @dev This function will fail after exchange has been called because this contract 
+     *  will not be an admin at that point.
+     */
     function regainOwnership() external onlySeller {
         contractForSale.grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
@@ -124,7 +128,7 @@ contract SafeExchange {
      *      to add value to the contract.
      */
     function payBonusPayment() external onlyBuyer() {
-        transferMoney(exchangeCompletedBySeller, bonus);
+        transferMoney(seller, bonus);
         bonus = 0;
     }
 

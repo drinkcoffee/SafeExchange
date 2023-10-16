@@ -19,6 +19,7 @@ The following are unit tests for SafeExchange.sol.
 | testExchangeTwoAdmins           | Exchange with a second admin will fail.           | No         |
 | testRegainOwnership             | Allow seller to transfer admin back if the don't call exchange. | Yes      |
 | testRegainOwnershipBadAuth      | Bad auth for regainOwnership                      | No         |
+| testRegainOwnershipAfterExchange| Attemp to call regainOwnership after exchange     | No         |
 | testIncreaseBonus               | Check ability to add value to the contract.       | Yes        |
 | testDecreaseBonus               | Check ability to remove value from the contract.  | Yes        |
 | testDecreaseBonusBadAuth        | Bad auth for decreaseBonus.                       | No         |
