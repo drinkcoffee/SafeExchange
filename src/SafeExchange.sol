@@ -6,12 +6,13 @@ pragma solidity ^0.7.6;
 import "./oz340/AccessControl.sol";
 
 /**
- * SafeExchange allows a contract with AccessControl to be sold. The contract is 
+ * SafeExchange allows a contract with AccessControl to be sold. This contract is 
  * deployed by the buyer. The seller then calls the exchange function.
  */
 contract SafeExchange {
     // The only admin role of the contract. All other roles, if they exist, 
-    // should be revoked.
+    // should be revoked. The code in this contract does not check that this 
+    // has occurred however.
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
     // Owner of this contract and account wanting to buy the contract that is for sale.

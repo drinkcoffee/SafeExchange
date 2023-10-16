@@ -18,7 +18,9 @@ contract ContractForSale is AccessControl {
 
 
 
-contract SafeExchangeTest is Test {
+contract SafeExchangeForkTest is Test {
+    address public constant CONTRACT_FOR_SALE = 0xAcB3C6a43D15B907e8433077B6d38Ae40936fe2c;
+
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
     uint256 public constant HUGE_AMOUNT = 100 ether;
@@ -30,24 +32,40 @@ contract SafeExchangeTest is Test {
     ContractForSale public contractForSale;
 
     address buyer = makeAddr("buyer");
-    address seller = makeAddr("seller");
+    address seller = 0x2A00CA38FB9B821edeA2478DA31d97B0f83347fe;
     address newAdmin = makeAddr("newAdmin");
+
+    address other1 = 0x81f482C74CaEBafA2EC727136e159794BE11d758;
+    address other2 = 0xc69347a086035d088981AF735816d43A830234B3;
+    address other3 = 0xB33c8D383BBe37C65ca30D92d71A512C4112c3a3;
 
 
     function setUp() public {
-        vm.startPrank(seller);
-        contractForSale = new ContractForSale();
-        vm.stopPrank();
+        string memory RPC_URL = vm.envString("RPC");
+        vm.createSelectFork(RPC_URL);
+
+        contractForSale = ContractForSale(CONTRACT_FOR_SALE);
 
         vm.deal(buyer, HUGE_AMOUNT);
         vm.startPrank(buyer);
         safeExchange = new SafeExchange{value: OFFER_AMOUNT1 + BONUS_AMOUNT1}(newAdmin, seller, address(contractForSale), OFFER_AMOUNT1);
         vm.stopPrank();
+
+        // Remove other admins
+        vm.startPrank(other1);
+        contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, other1);
+        vm.stopPrank();
+        vm.startPrank(other2);
+        contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, other2);
+        vm.stopPrank();
+        vm.startPrank(other3);
+        contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, other3);
+        vm.stopPrank();
     }
 
     function testInit() public {
         // Check the set-up of the contract for sale.
-        assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins");
+        assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins1");
         assertTrue(contractForSale.hasRole(DEFAULT_ADMIN_ROLE, seller), "Seller not admin");
 
         // Check the initial configuration of the same exchange contract.
@@ -59,6 +77,7 @@ contract SafeExchangeTest is Test {
        assertEq(safeExchange.newAdmin(), newAdmin, "New admin not set correctly");
        assertEq(address(safeExchange.contractForSale()), address(contractForSale), "Contract for sale incorrect address");
     }
+
 
     function testInitBadOffer() public {
         vm.deal(buyer, HUGE_AMOUNT);
@@ -104,14 +123,16 @@ contract SafeExchangeTest is Test {
     }
 
     function testExchange() public {
+        uint256 sellerOriginalBalance = seller.balance;
+
         prepareForExchange();
         vm.startPrank(seller, seller);
         safeExchange.exchange(OFFER_AMOUNT1);
         vm.stopPrank();
         assertEq(buyer.balance, HUGE_AMOUNT - OFFER_AMOUNT1 - BONUS_AMOUNT1, "Incorrect buyer balance");
-        assertEq(seller.balance, OFFER_AMOUNT1, "Incorrect seller balance");
+        assertEq(seller.balance, OFFER_AMOUNT1 + sellerOriginalBalance, "Incorrect seller balance");
 
-        assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins");
+        assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins2");
         assertTrue(contractForSale.hasRole(DEFAULT_ADMIN_ROLE, newAdmin), "newAdmin not admin");
         assertEq(safeExchange.offer(), 0, "Offer not cleared");
     }
@@ -160,7 +181,7 @@ contract SafeExchangeTest is Test {
         prepareForExchange();
         vm.startPrank(seller);
         safeExchange.regainOwnership();
-        assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins");
+        assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins3");
         assertTrue(contractForSale.hasRole(DEFAULT_ADMIN_ROLE, seller), "seller not admin");
     }
 
@@ -170,7 +191,7 @@ contract SafeExchangeTest is Test {
         vm.expectRevert("Not seller");
         safeExchange.regainOwnership();
         // Check contract is still admin.
-        assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins");
+        assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins4");
         assertTrue(contractForSale.hasRole(DEFAULT_ADMIN_ROLE, address(safeExchange)), "safeExchange not admin");
     }
 
@@ -212,6 +233,8 @@ contract SafeExchangeTest is Test {
     }
 
     function testBonusPayment() public {
+        uint256 sellerOriginalBalance = seller.balance;
+
         prepareForExchange();
         vm.startPrank(seller, seller);
         safeExchange.exchange(OFFER_AMOUNT1);
@@ -219,7 +242,7 @@ contract SafeExchangeTest is Test {
         vm.startPrank(buyer);
         safeExchange.payBonusPayment();
         vm.stopPrank();
-        assertEq(seller.balance, OFFER_AMOUNT1 + BONUS_AMOUNT1, "Incorrect seller balance");
+        assertEq(seller.balance, OFFER_AMOUNT1 + BONUS_AMOUNT1 + sellerOriginalBalance, "Incorrect seller balance");
         assertEq(safeExchange.bonus(), 0, "Bonus not cleared");
     }
 
@@ -238,8 +261,9 @@ contract SafeExchangeTest is Test {
         vm.startPrank(seller, seller);
         contractForSale.grantRole(DEFAULT_ADMIN_ROLE, address(safeExchange));
         contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, seller);
-        assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins");
+        assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins5");
         assertTrue(contractForSale.hasRole(DEFAULT_ADMIN_ROLE, address(safeExchange)), "safeExchange not admin");
         vm.stopPrank();
     }
 }
+
