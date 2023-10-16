@@ -22,6 +22,12 @@ contract SafeExchange {
     // Administrator that will have DEFAULT_ADMIN_ROLE after the exchange.
     address public newAdmin;
 
+    // Amount offered in exchange for the contract.
+    uint256 public offer;
+
+    // Bonus amount available.
+    uint256 public bonus;
+
     // Contract that is to be exchanged
     AccessControl public contractForSale;
 
@@ -51,12 +57,16 @@ contract SafeExchange {
      * @param _newAdmin Administrator to be given sole ownership on completion of the sale.
      * @param _seller Account selling the contract.
      * @param _contractForSale The contract which is to be bought.
+     * @param _offer The amount offered for sale of the contract. msg.value - offer is a bonus amount.
      */
-    constructor(address _newAdmin, address _seller, address _contractForSale) payable {
+    constructor(address _newAdmin, address _seller, address _contractForSale, uint256 _offer) payable {
+        require(_offer <= msg.value, "Offer smaller than value");
         buyer = msg.sender;
         seller = _seller;
         newAdmin = _newAdmin;
         contractForSale = AccessControl(_contractForSale);
+        offer = _offer;
+        bonus = msg.value - offer;
     }
 
     /** 
@@ -71,9 +81,9 @@ contract SafeExchange {
         require(msg.sender == tx.origin, "Not an EOA");
 
         // Ensure the seller doesn't front run this transaction reducing the amount offered
-        uint256 price1 = price();
+        uint256 price = offer;
         uint256 amount = _expectedAmount;
-        require(amount <= price1, "Insufficient funds");
+        require(amount <= price, "Insufficient funds");
 
         // Check that the number of admins is 1. The issue that we are guarding against is there being 
         // two DEFAULT_ADMIN_ROLE, of which only one is revoked.
@@ -89,10 +99,12 @@ contract SafeExchange {
         contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
 
         // Send price to msg.sender
-        transferMoney(msg.sender, price1);
+        transferMoney(msg.sender, price);
 
         // Indicate that the seller could receive a further future reward.
         exchangeCompletedBySeller = msg.sender;
+
+        offer = 0;
 
         // Indicate exchange completed.
         emit Exchanged(msg.sender);
@@ -112,7 +124,8 @@ contract SafeExchange {
      *      to add value to the contract.
      */
     function payBonusPayment() external onlyBuyer() {
-        transferMoney(exchangeCompletedBySeller, price());
+        transferMoney(exchangeCompletedBySeller, bonus);
+        bonus = 0;
     }
 
 
@@ -120,6 +133,7 @@ contract SafeExchange {
      * @notice Buyer (or anyone) calls this function to increase the offer.
      */
     function increaseOffer() external payable {
+        offer += msg.value;
     }
 
     /**
@@ -127,16 +141,28 @@ contract SafeExchange {
      * @param _amount Amount to decrease in Wei.
      */
     function decreaseOffer(uint256 _amount) external payable onlyBuyer() {
+        require(_amount <= offer, "Amount greater than offer");
+        offer -= _amount;
         transferMoney(msg.sender, _amount);
     }
 
     /**
-     * @notice Price is the amount being offered for the admin account
-     * @return bal The balance of this contract.
+     * @notice Buyer (or anyone) calls this function to increase the bonus.
      */
-    function price() public view returns (uint256 bal) {
-        bal = address(this).balance;
+    function increaseBonus() external payable {
+        bonus += msg.value;
     }
+
+    /**
+     * @notice Buyer calls this function to decrease the bonus.
+     * @param _amount Amount to decrease in Wei.
+     */
+    function decreaseBonus(uint256 _amount) external payable onlyBuyer() {
+        require(_amount <= bonus, "Amount greater than bonus");
+        bonus -= _amount;
+        transferMoney(msg.sender, _amount);
+    }
+
 
     /**
      * @notice Transfer money.

@@ -20,8 +20,10 @@ contract SafeExchangeTest is Test {
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
     uint256 public constant HUGE_AMOUNT = 100 ether;
-    uint256 public constant AMOUNT1 = 7 ether;
-    uint256 public constant AMOUNT2 = 5 ether;
+    uint256 public constant OFFER_AMOUNT1 = 7 ether;
+    uint256 public constant OFFER_AMOUNT2 = 5 ether;
+    uint256 public constant BONUS_AMOUNT1 = 3 ether;
+    uint256 public constant BONUS_AMOUNT2 = 1 ether;
     SafeExchange public safeExchange;
     ContractForSale public contractForSale;
 
@@ -37,7 +39,7 @@ contract SafeExchangeTest is Test {
 
         vm.deal(buyer, HUGE_AMOUNT);
         vm.startPrank(buyer);
-        safeExchange = new SafeExchange{value: AMOUNT1}(newAdmin, seller, address(contractForSale));
+        safeExchange = new SafeExchange{value: OFFER_AMOUNT1 + BONUS_AMOUNT1}(newAdmin, seller, address(contractForSale), OFFER_AMOUNT1);
         vm.stopPrank();
     }
 
@@ -47,8 +49,9 @@ contract SafeExchangeTest is Test {
         assertTrue(contractForSale.hasRole(DEFAULT_ADMIN_ROLE, seller), "Seller not admin");
 
         // Check the initial configuration of the same exchange contract.
-       assertEq(address(safeExchange).balance, AMOUNT1, "Incorrect balance");
-       assertEq(safeExchange.price(), AMOUNT1, "Incorrect price");
+       assertEq(address(safeExchange).balance, OFFER_AMOUNT1 + BONUS_AMOUNT1, "Incorrect balance");
+       assertEq(safeExchange.offer(), OFFER_AMOUNT1, "Incorrect offer");
+       assertEq(safeExchange.bonus(), BONUS_AMOUNT1, "Incorrect bonus");
        assertEq(safeExchange.buyer(), buyer, "Buyer in contract not buyer");
        assertEq(safeExchange.seller(), seller, "Seller in contract not seller");
        assertEq(safeExchange.newAdmin(), newAdmin, "New admin not set correctly");
@@ -56,53 +59,75 @@ contract SafeExchangeTest is Test {
        assertEq(safeExchange.exchangeCompletedBySeller(), address(0), "exchangeCompletedBySeller not set correctly");
     }
 
+    function testInitBadOffer() public {
+        vm.deal(buyer, HUGE_AMOUNT);
+        vm.startPrank(buyer);
+        vm.expectRevert('Offer smaller than value');
+        safeExchange = new SafeExchange{value: OFFER_AMOUNT1}(newAdmin, seller, address(contractForSale), OFFER_AMOUNT1 + 1);
+    }
+
+    function testInitNoBonus() public {
+        vm.startPrank(buyer);
+        safeExchange = new SafeExchange{value: OFFER_AMOUNT1}(newAdmin, seller, address(contractForSale), OFFER_AMOUNT1);
+       assertEq(safeExchange.bonus(), 0, "Incorrect bonus");
+    }
+
+    function testInitNoOffer() public {
+        vm.startPrank(buyer);
+        safeExchange = new SafeExchange{value: BONUS_AMOUNT1}(newAdmin, seller, address(contractForSale), 0);
+       assertEq(safeExchange.offer(), 0, "Incorrect offer");
+    }
+
     function testIncreaseOffer() public {
-        safeExchange.increaseOffer{value: AMOUNT2}();
-        assertEq(safeExchange.price(), AMOUNT1 + AMOUNT2, "Incorrect price");
+        safeExchange.increaseOffer{value: OFFER_AMOUNT2}();
+        assertEq(safeExchange.offer(), OFFER_AMOUNT1 + OFFER_AMOUNT2, "Incorrect offer");
     }
 
     function testDecreaseOffer() public {
         vm.startPrank(buyer);
-        safeExchange.decreaseOffer(AMOUNT2);
-        assertEq(safeExchange.price(), AMOUNT1 - AMOUNT2, "Incorrect price");
-        assertEq(buyer.balance, HUGE_AMOUNT - AMOUNT1 + AMOUNT2, "Incorrect buyer balance");
+        safeExchange.decreaseOffer(OFFER_AMOUNT2);
+        assertEq(safeExchange.offer(), OFFER_AMOUNT1 - OFFER_AMOUNT2, "Incorrect offer");
+        assertEq(buyer.balance, HUGE_AMOUNT - OFFER_AMOUNT1 - BONUS_AMOUNT1 + OFFER_AMOUNT2, "Incorrect buyer balance");
     }
 
     function testDecreaseOfferBadAuth() public {
         vm.startPrank(seller);
         vm.expectRevert('Not buyer');
-        safeExchange.decreaseOffer(AMOUNT2);
+        safeExchange.decreaseOffer(OFFER_AMOUNT2);
     }
 
     function testDecreaseOfferTooMuch() public {
         vm.startPrank(buyer);
-        vm.expectRevert('Transfer failed');
-        safeExchange.decreaseOffer(AMOUNT1 + 1);
+        vm.expectRevert('Amount greater than offer');
+        safeExchange.decreaseOffer(OFFER_AMOUNT1 + 1);
     }
 
     function testExchange() public {
         prepareForExchange();
         vm.startPrank(seller, seller);
-        safeExchange.exchange(AMOUNT1);
-        assertEq(buyer.balance, HUGE_AMOUNT - AMOUNT1, "Incorrect buyer balance");
-        assertEq(seller.balance, AMOUNT1, "Incorrect seller balance");
+        safeExchange.exchange(OFFER_AMOUNT1);
+        vm.stopPrank();
+        assertEq(buyer.balance, HUGE_AMOUNT - OFFER_AMOUNT1 - BONUS_AMOUNT1, "Incorrect buyer balance");
+        assertEq(seller.balance, OFFER_AMOUNT1, "Incorrect seller balance");
 
         assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins");
         assertTrue(contractForSale.hasRole(DEFAULT_ADMIN_ROLE, newAdmin), "newAdmin not admin");
+        assertEq(safeExchange.offer(), 0, "Offer not cleared");
+
     }
 
     function testExchangeBadAuth() public {
         prepareForExchange();
         vm.startPrank(buyer, buyer);
         vm.expectRevert('Not seller');
-        safeExchange.exchange(AMOUNT1);
+        safeExchange.exchange(OFFER_AMOUNT1);
     }
 
     function testExchangeNotEOA() public {
         prepareForExchange();
         vm.startPrank(seller, buyer);
         vm.expectRevert('Not an EOA');
-        safeExchange.exchange(AMOUNT1);
+        safeExchange.exchange(OFFER_AMOUNT1);
     }
 
     function testExchangeFrontRun() public {
@@ -110,12 +135,12 @@ contract SafeExchangeTest is Test {
 
         // Just before the seller calls exchange, decrease the offer
         vm.startPrank(buyer);
-        safeExchange.decreaseOffer(AMOUNT2);
+        safeExchange.decreaseOffer(OFFER_AMOUNT2);
         vm.stopPrank();
 
         vm.startPrank(seller, seller);
         vm.expectRevert("Insufficient funds");
-        safeExchange.exchange(AMOUNT1);
+        safeExchange.exchange(OFFER_AMOUNT1);
     }
 
     function testExchangeTwoAdmins() public {
@@ -128,7 +153,7 @@ contract SafeExchangeTest is Test {
 
         vm.startPrank(seller, seller);
         vm.expectRevert("Too many admins");
-        safeExchange.exchange(AMOUNT1);
+        safeExchange.exchange(OFFER_AMOUNT1);
     }
 
     function testRegainOwnership() public {
@@ -147,6 +172,52 @@ contract SafeExchangeTest is Test {
         // Check contract is still admin.
         assertEq(contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "Incorrect number of admins");
         assertTrue(contractForSale.hasRole(DEFAULT_ADMIN_ROLE, address(safeExchange)), "safeExchange not admin");
+    }
+
+    function testIncreaseBonus() public {
+        safeExchange.increaseBonus{value: BONUS_AMOUNT2}();
+        assertEq(safeExchange.bonus(), BONUS_AMOUNT1 + BONUS_AMOUNT2, "Incorrect bonus");
+    }
+
+    function testDecreaseBonus() public {
+        vm.startPrank(buyer);
+        safeExchange.decreaseBonus(BONUS_AMOUNT2);
+        assertEq(safeExchange.bonus(), BONUS_AMOUNT1 - BONUS_AMOUNT2, "Incorrect bonus");
+        assertEq(buyer.balance, HUGE_AMOUNT - OFFER_AMOUNT1 - BONUS_AMOUNT1 + BONUS_AMOUNT2, "Incorrect buyer balance");
+    }
+
+    function testDecreaseBonusBadAuth() public {
+        vm.startPrank(seller);
+        vm.expectRevert('Not buyer');
+        safeExchange.decreaseBonus(BONUS_AMOUNT2);
+    }
+
+    function testDecreaseBonusTooMuch() public {
+        vm.startPrank(buyer);
+        vm.expectRevert('Amount greater than bonus');
+        safeExchange.decreaseBonus(BONUS_AMOUNT1 + 1);
+    }
+
+    function testBonusPayment() public {
+        prepareForExchange();
+        vm.startPrank(seller, seller);
+        safeExchange.exchange(OFFER_AMOUNT1);
+        vm.stopPrank();
+        vm.startPrank(buyer);
+        safeExchange.payBonusPayment();
+        vm.stopPrank();
+        assertEq(seller.balance, OFFER_AMOUNT1 + BONUS_AMOUNT1, "Incorrect seller balance");
+        assertEq(safeExchange.bonus(), 0, "Bonus not cleared");
+    }
+
+    function testBonusBadAuth() public {
+        prepareForExchange();
+        vm.startPrank(seller, seller);
+        safeExchange.exchange(OFFER_AMOUNT1);
+        vm.stopPrank();
+        vm.startPrank(seller);
+        vm.expectRevert("Not buyer");
+        safeExchange.payBonusPayment();
     }
 
 
