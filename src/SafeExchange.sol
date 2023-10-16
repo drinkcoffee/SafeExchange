@@ -13,8 +13,11 @@ contract SafeExchange {
     // should be revoked.
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
-    // Owner of the contract.
-    address public owner;
+    // Owner of this contract and account wanting to buy the contract that is for sale.
+    address public buyer;
+
+    // Account wanting to sell the contract that is for sale.
+    address public seller;
 
     // Administrator that will have DEFAULT_ADMIN_ROLE after the exchange.
     address public newAdmin;
@@ -28,19 +31,30 @@ contract SafeExchange {
     // Emitted when the exchange has been completed.
     event Exchanged(address seller);
 
-    // Modifier to only allow the owner to execute a function.
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
+    // Regained ownerhsip as the exchange failed for some reason.
+    event RegainedOwnership(address seller);
+
+    // Modifier to only allow the buyer to execute a function.
+    modifier onlyBuyer() {
+        require(msg.sender == buyer, "Not buyer");
         _;
     }
+
+    modifier onlySeller() {
+        require(msg.sender == seller, "Not seller");
+        _;
+    }
+
 
     /** 
      * @notice Buyer creates the contract, sending the offered amount.
      * @param _newAdmin Administrator to be given sole ownership on completion of the sale.
+     * @param _seller Account selling the contract.
      * @param _contractForSale The contract which is to be bought.
      */
-    constructor(address _newAdmin, address _contractForSale) payable {
-        owner = msg.sender;
+    constructor(address _newAdmin, address _seller, address _contractForSale) payable {
+        buyer = msg.sender;
+        seller = _seller;
         newAdmin = _newAdmin;
         contractForSale = AccessControl(_contractForSale);
     }
@@ -48,17 +62,17 @@ contract SafeExchange {
     /** 
      * @notice Seller calls this, to exchange control of admin rights for the balance of this contract.
      * @dev The transaction must be sent by the account with DEFAULT ADMIN on the contract to be sold.
-     * @param _expectedAmountInEth The expected sale price. This is needed to mitigate front running. 
+     * @param _expectedAmount The expected sale price in Wei. This is needed to mitigate front running. 
      *     That is, the balance of this contract changing immediately prior to this function being called.
      */
-    function exchange(uint256 _expectedAmountInEth) external {
+    function exchange(uint256 _expectedAmount) external onlySeller {
         // Prevent contract accounts calling this. This prevents MultiCall contracts possibly 
         // doing something "extra" in the same transaction.
         require(msg.sender == tx.origin, "Not an EOA");
 
         // Ensure the seller doesn't front run this transaction reducing the amount offered
         uint256 price1 = price();
-        uint256 amount = _expectedAmountInEth * 1 ether;
+        uint256 amount = _expectedAmount;
         require(amount <= price1, "Insufficient funds");
 
         // Check that the number of admins is 1. The issue that we are guarding against is there being 
@@ -72,7 +86,7 @@ contract SafeExchange {
         contractForSale.grantRole(DEFAULT_ADMIN_ROLE, newAdmin);
 
         // Renounce DEFAULT_ADMIN_ROLE role for msg.sender
-        contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
 
         // Send price to msg.sender
         transferMoney(msg.sender, price1);
@@ -80,40 +94,40 @@ contract SafeExchange {
         // Indicate that the seller could receive a further future reward.
         exchangeCompletedBySeller = msg.sender;
 
-        // Indicate exchange complted.
+        // Indicate exchange completed.
         emit Exchanged(msg.sender);
     }
+
+    function regainOwnership() external onlySeller {
+        contractForSale.grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
+        emit RegainedOwnership(msg.sender);
+    }
+
+
 
     /**
      * @notice Pay a bonus payment to the seller.
      * @dev For this to work, the increaseOffer funcion needs to be called 
      *      to add value to the contract.
      */
-    function payBonusPayment() external onlyOwner() {
+    function payBonusPayment() external onlyBuyer() {
         transferMoney(exchangeCompletedBySeller, price());
     }
 
 
     /**
-     * @notice Buyer calls this function to increase the offer.
+     * @notice Buyer (or anyone) calls this function to increase the offer.
      */
-    function increaseOffer() external payable onlyOwner() {
+    function increaseOffer() external payable {
     }
 
     /**
      * @notice Buyer calls this function to decrease the offer.
-     * @param _amountInEther Amount to decrease in Ether.
+     * @param _amount Amount to decrease in Wei.
      */
-    function decreaseOffer(uint256 _amountInEther) external payable onlyOwner() {
-        uint256 amount = _amountInEther * 1 ether;
-        transferMoney(msg.sender, amount);
-    }
-
-    /**
-     * @notice Send all money to the owner and delete the contract
-     */
-    function goodBye() external onlyOwner {
-        selfdestruct(payable(owner));
+    function decreaseOffer(uint256 _amount) external payable onlyBuyer() {
+        transferMoney(msg.sender, _amount);
     }
 
     /**
@@ -126,7 +140,7 @@ contract SafeExchange {
 
     /**
      * @notice Transfer money.
-     * @param _to Recipient of the ether.
+     * @param _to Recipient of the value.
      * @param _amount Amount to transfer in wei.
      */
     function transferMoney(address _to, uint256 _amount) private {

@@ -7,13 +7,15 @@ The following are unit tests for SafeExchange.sol.
 | testInit                        | Check constructor sets values appropriately.      | Yes        |
 | testIncreaseOffer               | Check ability to add value to the contract.       | Yes        |
 | testDecreaseOffer               | Check ability to remove value from the contract.  | Yes        |
-| testGoodBye                     | Check ability to kill contract.                   | Yes        |
+| testDecreaseOfferBadAuth        | Bad auth for decreaseOffer.                       | No         |
+| testDecreaseOfferTooMuch        | Attempt to decrease to a negative balance.        | No         |
 | testExchange                    | Execute exchange.                                 | Yes        |
+| testExchangeBadAuth             | Bad auth for exchange.                            | No         |
+| testExchangeNotEOA              | Call exchange via a contract fails.               | No         |
+| testExchangeFrontRun            | Amount being less that expected fails.            | No         |
+| testExchangeTwoAdmins           | Exchange with a second admin will fail.           | No         |
+| testRegainOwnership             | Allow seller to transfer admin back if the don't call exchange. | Yes      |
+| testRegainOwnershipBadAuth      | Bad auth for regainOwnership                      | No         |
 | testBonusPayment                | Execute exchange and then bonus payment.          | Yes        |
-| testNotEOA                      | Call exchange via a contract fails.               | No         |
-| testFrontRun                    | Amount being less that expected fails.            | No         |
-| testTwoAdmins                   | Exchange with a second admin will fail.           | No         |
-| testNoAdmin                     | Fail attempts to use a non-admin with exchange.   | No         |
-|
 
 
