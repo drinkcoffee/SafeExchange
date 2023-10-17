@@ -52,7 +52,7 @@ contract SafeExchange {
 
 
     /** 
-     * @notice Buyer creates the contract, sending the offered amount.
+     * @notice Buyer creates the contract, sending the offered and bonus amount as the transaction value.
      * @param _newAdmin Administrator to be given sole ownership on completion of the sale.
      * @param _seller Account selling the contract.
      * @param _contractForSale The contract which is to be bought.
@@ -70,7 +70,8 @@ contract SafeExchange {
 
     /** 
      * @notice Seller calls this, to exchange control of admin rights for the balance of this contract.
-     * @dev The transaction must be sent by the account with DEFAULT ADMIN on the contract to be sold.
+     * @dev This contract must have been granted DEFAULT_ADMIN_ROLE and be the only admin prior to calling 
+     *  this function.
      * @param _expectedAmount The expected sale price in Wei. This is needed to mitigate front running. 
      *     That is, the balance of this contract changing immediately prior to this function being called.
      */
@@ -81,11 +82,10 @@ contract SafeExchange {
 
         // Ensure the seller doesn't front run this transaction reducing the amount offered
         uint256 price = offer;
-        uint256 amount = _expectedAmount;
-        require(amount <= price, "Insufficient funds");
+        require(_expectedAmount <= price, "Insufficient funds");
 
         // Check that the number of admins is 1. The issue that we are guarding against is there being 
-        // two DEFAULT_ADMIN_ROLE, of which only one is revoked.
+        // two DEFAULT_ADMIN_ROLE, of which only this contract could be revoked in this call.
         // NOTE: If there other classes of admins, they should be revoked prior to this call.
         // This revocation is not checked for in this code.
         uint256 numAdmins = contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE);
@@ -120,7 +120,6 @@ contract SafeExchange {
         contractForSale.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
         emit RegainedOwnership(msg.sender);
     }
-
 
 
     /**
