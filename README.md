@@ -13,7 +13,7 @@ The happy case process is:
 
 Optional additional steps to pay a bonus payment (which can be repeated multiple times):
 
-* Buyer calls `payBonusPayment` to send the bonus payment to the address that called `exchange`` in the steps above.
+* Buyer calls `payBonusPayment` to send the bonus payment to the address that called `exchange` in the steps above.
 
 If the `exchange` function fails, or the seller changes their mind after switching ownership of the contract to be sold to the SafeExchange contract, they can regain control of the contract being sold by calling:
 

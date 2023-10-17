@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo PKEY: $PKEY
-echo RPCURL: $RPC
+echo RPC URL: $RPC
 echo APIKEY: $APIKEY
 
 forge create --rpc-url $RPC \

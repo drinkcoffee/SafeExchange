@@ -24,7 +24,7 @@ contract SafeExchange {
     // Administrator that will have DEFAULT_ADMIN_ROLE after the exchange.
     address public newAdmin;
 
-    // Amount offered in exchange for the contract.
+    // Amount offered in exchange for the contract being sold.
     uint256 public offer;
 
     // Bonus amount available.
@@ -45,6 +45,7 @@ contract SafeExchange {
         _;
     }
 
+    // Modifier to only allow the seller to execute a function.
     modifier onlySeller() {
         require(msg.sender == seller, "Not seller");
         _;
@@ -80,12 +81,13 @@ contract SafeExchange {
         // doing something "extra" in the same transaction.
         require(msg.sender == tx.origin, "Not an EOA");
 
-        // Ensure the seller doesn't front run this transaction reducing the amount offered
+        // Ensure the buyer doesn't front run this transaction reducing the amount offered
         uint256 price = offer;
         require(_expectedAmount <= price, "Insufficient funds");
 
         // Check that the number of admins is 1. The issue that we are guarding against is there being 
-        // two DEFAULT_ADMIN_ROLE, of which only this contract could be revoked in this call.
+        // other accounts with DEFAULT_ADMIN_ROLE, and one of them immediately after this call, revoking 
+        // the  DEFAULT_ADMIN_ROLE role of the newAdmin account. 
         // NOTE: If there other classes of admins, they should be revoked prior to this call.
         // This revocation is not checked for in this code.
         uint256 numAdmins = contractForSale.getRoleMemberCount(DEFAULT_ADMIN_ROLE);

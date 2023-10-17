@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo PKEY: $PKEY
-echo RPCURL: $RPC
+echo RPC URL: $RPC
 echo APIKEY: $APIKEY
 
 # Constructor args are: address of new admin, address of seller, address of contract being sold, offer amount
